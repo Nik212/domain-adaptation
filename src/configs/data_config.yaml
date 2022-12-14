@@ -1,0 +1,4 @@
+root_train: 'canonical-paritioned-dataset/shifts_canonical_train.csv'
+root_val: 'canonical-paritioned-dataset/shifts_canonical_dev_in.csv'
+batch_size: 256
+climate: 'mild temperate'
