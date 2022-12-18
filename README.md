@@ -1,12 +1,13 @@
-# domain-adaptation
+# Domain adaptation
+
+### Introduction
 
 
-
+### Algorithm
 
 
 ### Dataset Description
 
-The block of weather data is partitioned into the following disjoint subsets:
 
 #### 1. `train.csv`
 Data for training.
@@ -36,3 +37,6 @@ Same as `dev_out.csv` with meta data (first 6 features including climate type) r
 
 #### 9. `eval_out_no_meta.csv`
 Same as `eval_out.csv` with meta data (first 6 features including climate type) removed.
+
+
+### Results
