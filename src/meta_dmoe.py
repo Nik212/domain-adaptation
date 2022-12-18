@@ -1,32 +1,14 @@
-from aggregator import fa_selector
+from models import fa_selector
 from torch import nn
-from transformer import Transformer
+from nets.transformer import Transformer
 import torch
 from torch import optim
-
+from utils import utils
 import pandas as pd
+import numpy as np
 
 
-df_train = pd.read_csv('/Users/nikglukhov/n.glukhov/canonical-paritioned-dataset/shifts_canonical_train.csv')
-df_dev_in = pd.read_csv('/Users/nikglukhov/n.glukhov/canonical-paritioned-dataset/shifts_canonical_dev_in.csv')
-df_dev_out = pd.read_csv('/Users/nikglukhov/n.glukhov/canonical-paritioned-dataset/shifts_canonical_dev_out.csv')
-df_dev = pd.concat([df_dev_in, df_dev_out])
-
-domains_train = df_train.climate.unique()
-
-def l2_loss(input, target):
-    loss = torch.square(target - input)
-    loss = torch.mean(loss)
-    return loss
-
-
-def features_mask(features, domains, climate):
-    mask = (domains == climate).nonzero()
-    features[(domains == climate).nonzero()[0]] = torch.zeros_like(features[0])
-    return features
-
-
-def train_epoch(selector, selector_name, source_domains_experts, student, student_name, 
+def train_epoch(selector, source_domains_experts, student, student_name, 
                 train_loader, grouper, epoch, curr, mask_grouper, split_to_cluster,
                 device, acc_best=0, tlr=1e-4, slr=1e-4, ilr=1e-3,
                 batch_size=256, sup_size=24, test_way='id', save=False,
@@ -39,6 +21,7 @@ def train_epoch(selector, selector_name, source_domains_experts, student, studen
     
     features = student.features
     head = student.classifier
+    
     features.to(device)
     head.to(device)
     
@@ -77,7 +60,7 @@ def train_epoch(selector, selector_name, source_domains_experts, student, studen
         with torch.no_grad():
             logits = torch.stack(
                 [
-                features_mask(expert(x_sup).detach(), domain, climate)
+                utils.features_mask(expert(x_sup).detach(), domain, climate)
                 for climate, expert in source_domains_experts.items()
                 ], dim=-1)
             ### Expert input: [BS, 123]; Expert output: [BS, N]
