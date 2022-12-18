@@ -1,4 +1,5 @@
-# Domain adaptation
+# Tackling domain adaptation problem in regression by Meta-Distillation from Mixture-of-Experts
+A course project
 
 ### Introduction
 
