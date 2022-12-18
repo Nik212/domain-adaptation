@@ -1,5 +1,5 @@
 # Tackling domain adaptation problem in regression by Meta-Distillation from Mixture-of-Experts
-A course project
+A course project & reproducibility challenge
 
 ### Introduction
 
@@ -41,3 +41,10 @@ Same as `eval_out.csv` with meta data (first 6 features including climate type) 
 
 
 ### Results
+
+### References 
+[1] The original paper on the Meta-DMoE: Zhong, Tao, et al. "Meta-DMoE: Adapting to Domain Shift by Meta-Distillation from Mixture-of-Experts." arXiv preprint arXiv:2210.03885 (2022).
+
+[2] Dataset used: Malinin, Andrey, et al. "Shifts: A dataset of real distributional shift across multiple large-scale tasks." arXiv preprint arXiv:2107.07455 (2021).
+
+[3] Validation & metrics pipeline code borrowed from: https://github.com/Shifts-Project/shifts
