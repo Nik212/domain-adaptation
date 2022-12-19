@@ -6,7 +6,7 @@ fa_selector:
     dropout: 0.0
     out_dim: 1
     pool: 'mean'
-    model_path: ''
+    model_path: 'la-la'
     
 student:
     d_numerical: 119
@@ -28,3 +28,4 @@ student:
     kv_compression_sharing: 
     #
     d_out: 1
+    model_path: 'la-la'

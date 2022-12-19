@@ -1,3 +1,5 @@
+import torch
+
 def l2_loss(input, target):
     loss = torch.square(target - input)
     loss = torch.mean(loss)

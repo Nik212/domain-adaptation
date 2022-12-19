@@ -7,22 +7,23 @@ from utils import utils
 import pandas as pd
 import numpy as np
 from tqdm import tqdm
+import learn2learn as l2l
+import torch.nn.functional as F
 
-def train_epoch(selector, source_domains_experts, student, student_name, 
-                train_loader, epoch, curr, mask_grouper, split_to_cluster,
-                device, acc_best=0, tlr=1e-4, slr=1e-4, ilr=1e-3,
-                batch_size=256, sup_size=24, test_way='id', save=False,
+def train_epoch(selector, source_domains_experts, student,
+                train_loader, val_loader, epoch, device, tlr=1e-4, slr=1e-4, ilr=1e-3,
+                batch_size=256, test_way='id', save=False,
                 root_dir='data'):
     
-    for _, expert in source_domains_experts.items():
+    for expert in source_domains_experts.values():
         expert.eval()
     
     loss = nn.MSELoss()
 
     
-    features = student.features
-    head = student.head
-    
+    features = student.features #
+    head = student.head         #
+    features = l2l.algorithms.MAML(features, lr=ilr)  
     features.to(device)
     head.to(device)
     
@@ -43,16 +44,18 @@ def train_epoch(selector, source_domains_experts, student, student_name,
         
         domain = np.array(metadata['climate'])
         
-        sup_size = x.shape[0]//2
-        x_sup = x[:sup_size]
+        sup_size = x[0].shape[0]//2
+        x_sup_num, x_sup_cat = x[0][:sup_size], x[1][:sup_size]
         y_sup = y_true[:sup_size]
-        x_que = x[sup_size:]
+        x_que_num, x_que_cat = x[0][sup_size:], x[1][sup_size:]
         y_que = y_true[sup_size:]
         domain = domain[:sup_size]
 
-        x_sup = x_sup.to(device)
+        x_sup_num = x_sup_num.to(device)
+        x_sup_cat = x_sup_cat.to(device)
         y_sup = y_sup.to(device)
-        x_que = x_que.to(device)
+        x_que_num = x_que_num.to(device)
+        x_que_cat = x_que_cat.to(device)
         y_que = y_que.to(device)
         
 
@@ -60,7 +63,7 @@ def train_epoch(selector, source_domains_experts, student, student_name,
         with torch.no_grad():
             logits = torch.stack(
                 [
-                utils.features_mask(expert(x_sup).detach(), domain, climate)
+                utils.features_mask(expert(x_sup_num, x_sup_cat).detach(), domain, climate)
                 for climate, expert in source_domains_experts.items()
                 ], dim=-1)
             ### Expert input: [BS, 123]; Expert output: [BS, N]
@@ -77,17 +80,17 @@ def train_epoch(selector, source_domains_experts, student, student_name,
 
         task_model = features.clone()
         task_model.module.eval()
-        feat = task_model(x_que)
+        feat = task_model(x_que_num, x_que_cat)
         feat = feat.view(feat.shape[0], -1)
         out = head(feat)
         
-        feat = task_model(x_sup)
+        feat = task_model(x_sup_num, x_sup_cat)
         feat = feat.view_as(t_out)
 
-        inner_loss = l2_loss(feat, t_out)
+        inner_loss = F.mse_loss(feat, t_out)
         task_model.adapt(inner_loss)
         
-        x_que = task_model(x_que)
+        x_que = task_model(x_que_num, x_que_cat)
         x_que = x_que.view(x_que.shape[0], -1)
         s_que_out = head(x_que)
         s_que_loss = loss(s_que_out, y_que.unsqueeze(-1).float())
@@ -111,19 +114,18 @@ def train_epoch(selector, source_domains_experts, student, student_name,
     return None
 
 
-def train_kd(selector, train_loader, val_loader, selector_name, models_list, student, student_name, split_to_cluster, device,
-             batch_size=256, sup_size=24, tlr=1e-4, slr=1e-4, ilr=1e-5, num_epochs=30,
-             decayRate=0.96, save=False, test_way='ood', root_dir='data'):
+def train_kd(selector, models_list, device, train_loader, val_loader, student,  batch_size=256, sup_size=24, tlr=1e-4, slr=1e-4, ilr=1e-5, num_epochs=30,
+             decayRate=0.96, save=False, test_way='ood', root_dir='data', accu_best=0):
     
     for epoch in range(num_epochs):
-        some_train_loss_value = train_epoch(selector, selector_name, models_list, student, student_name, 
-                                train_loader, grouper, epoch, curr, mask_grouper, split_to_cluster,
-                                device, acc_best=accu_best, tlr=tlr, slr=slr, ilr=ilr,
-                                batch_size=batch_size, sup_size=sup_size, test_way=test_way, save=save,
+        some_train_loss_value = train_epoch(selector, models_list, student, 
+                                train_loader, val_loader, epoch, 
+                                device, tlr=tlr, slr=slr, ilr=ilr,
+                                batch_size=batch_size, test_way=test_way, save=save,
                                 root_dir=root_dir) # need to remove some input variables
-        some_eval_loss_value = eval(selector, val_loader, models_list, student, sup_size, device=device, 
-                    ilr=ilr, test=False, progress=False, uniform_over_groups=False,
-                    root_dir=root_dir)
+        # some_eval_loss_value = eval(selector, val_loader, models_list, student, sup_size, device=device, 
+        #             ilr=ilr, test=False, progress=False, uniform_over_groups=False,
+        #             root_dir=root_dir)
 
         ### 
         # print results
@@ -136,7 +138,7 @@ def train_kd(selector, train_loader, val_loader, selector_name, models_list, stu
 def train_model_selector(selector, models_list, device, train_loader, test_loader, root_dir='data',
                          batch_size=32, lr=1e-6, l2=0,
                          num_epochs=12, decayRate=0.96, save=True, test_way='ood'):
-    for model in models_list:
+    for model in models_list.values():
         model.eval()
     
     criterion = nn.MSELoss()
@@ -163,7 +165,7 @@ def train_model_selector(selector, models_list, device, train_loader, test_loade
             y_true = y_true.to(device)
     
             with torch.no_grad():
-                features = torch.stack([model(x_num, x_cat).detach() for model in models_list], dim=-1)
+                features = torch.stack([model(x_num, x_cat).detach() for model in models_list.values()], dim=-1)
                 features = features.permute((0,2,1))
             out = selector(features)
             out = out.squeeze()
@@ -201,13 +203,16 @@ def get_selector_accuracy(selector, models_list, data_loader, device, progress=T
         data_loader = tqdm(data_loader)
     for x, y_true, metadata in data_loader:
         
-        x = x.to(device)
+        x_num, x_cat = x[0], x[1]
+        x_num = x_num.to(device)
+        x_cat = x_cat.to(device)
         y_true = y_true.to(device)
         
         with torch.no_grad():
-            features = torch.stack([model(x).detach() for model in models_list], dim=-1)
+            features = torch.stack([model(x_num, x_cat).detach() for model in models_list.values()], dim=-1)
             features = features.permute((0,2,1))
             out = selector(features)
+            out = out.squeeze()
             correct += mse_loss(out, y_true).item()
             total += x.shape[0]
     
@@ -236,10 +241,12 @@ def train_model(model, device, train_loader, val_loader, domain=None, batch_size
         for x, y_true, metadata in tqdm(train_loader):
             model.train()
     
-            x = x.to(device)
+            x_num, x_cat = x[0], x[1]
+            x_num = x_num.to(device)
+            x_cat = x_cat.to(device)
             y_true = y_true.to(device)
             
-            pred = model(x)
+            pred = model(x_num, x_cat)
 
             loss = criterion(pred, y_true)
             loss.backward()
@@ -272,10 +279,12 @@ def get_model_accuracy(model, data_loader, device, domain=None):
     total = 0
     for x, y_true, metadata in iter(data_loader):
         
-        x = x.to(device)
+        x_num, x_cat = x[0], x[1]
+        x_num = x_num.to(device)
+        x_cat = x_cat.to(device)
         y_true = y_true.to(device)
         
-        out = model(x)
+        out = model(x_num, x_cat)
         loss += mse_loss(out, y_true).item()
         total += x.shape[0]
         

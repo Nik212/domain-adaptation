@@ -9,7 +9,7 @@ import tqdm
 import hydra
 from meta_dmoe import train_model, train_model_selector, train_kd
 from expertsTraining.ft_transformer import FTTransformer
-from models import get_feature_list, fa_selector
+from models import get_feature_list, fa_selector, StudentModel
 from expertsTraining.dataset import DatasetMetaDMOE
 
 LOAD_EXPERTS = True
@@ -122,25 +122,24 @@ if __name__ == '__main__':
                              save=True, batch_size=data_cfg.batch_size, lr=1e-4, l2=0,
                              num_epochs=12, decayRate=0.96)
 
-    selector.load_state_dict(torch.load(f"model/{args.dataset}/{name}_pretrained_selector_best.pth"))
+    # selector.load_state_dict(torch.load(f"model/{args.dataset}/{name}_pretrained_selector_best.pth"))
 
-    student = StudentModel(model.config.student, device=device, num_classes=OUT_DIM[args.dataset])
+    student = StudentModel(student_cfg.student, device=device)
 
-    if args.load_pretrained_student:
+    if student_cfg.student.model_path != '':
         print("Skip pretraining student...")
     else:
         print("Pretraining student...")
-        train_model(student, name+"_pretrained", device=device, 
-                    num_epochs=args.student_pretrain_epoch, save=True,
-                    root_dir=args.data_dir)
+        train_model(student, device, train_loader, val_loader, 
+                    num_epochs=12, save=True,
+                    root_dir='src/trained_experts')
 
-    student.load_state_dict(torch.load(f"model/{args.dataset}/{name}_pretrained_exp_best.pth"))
+    # student.load_state_dict(torch.load(f"model/{args.dataset}/{name}_pretrained_exp_best.pth"))
 
     print("Start meta-training...")
-    train_kd(selector, models_list, student, name+"_meta", split_to_cluster,
-            device=device, batch_size=args.batch_size, sup_size=args.sup_size, 
-            tlr=args.tlr, slr=args.slr, ilr=args.ilr, num_epochs=args.epoch, save=True, test_way='ood',
-            root_dir=args.data_dir)
+    train_kd(selector, models_list, device, train_loader, val_loader, student, batch_size=32,  
+            tlr=1e-2, slr=1e-4, ilr=1e-3, num_epochs=12, save=True, test_way='ood',
+            root_dir='src/trained_experts')
 
 
 
