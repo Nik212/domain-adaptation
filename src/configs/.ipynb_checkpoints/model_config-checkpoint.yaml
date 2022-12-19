@@ -2,10 +2,10 @@ model:
     d_numerical: 119
     categories: [2,2,2,2]
     token_bias: True
-    d_token: 192
+    d_token: 192 
     # transformer
-    n_layers: 10
-    n_heads: 8
+    n_layers: 3
+    n_heads: 8 
     d_ffn_factor: 1.333
     attention_dropout: 0.2
     ffn_dropout: 0.1
@@ -21,9 +21,9 @@ model:
     
 train:
     checkpoint_path: ''
-    experiment_name: 'mild_temperate_climate_batch_128_layers_10'
+    experiment_name: 'mild_temperate_climate_batch_256_layers_3'
     weight_decay: 0.0
     lr: 0.0001
-    max_epochs: 20
-    max_iterations: 700000
+    max_epochs: -1
+    max_iterations: 500000
     num_gpu: 1

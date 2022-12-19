@@ -1,0 +1,64 @@
+expert_dry:
+    d_numerical: 119
+    categories: [2,2,2,2]
+    token_bias: True
+    d_token: 192 
+    # transformer
+    n_layers: 24
+    n_heads: 8 
+    d_ffn_factor: 1.333
+    attention_dropout: 0.2
+    ffn_dropout: 0.1
+    residual_dropout: 0.0
+    prenormalization: False
+    initialization: 'kaiming'
+    activation: 'reglu'
+    # linformer
+    kv_compression: 
+    kv_compression_sharing: 
+    #
+    d_out: 1
+    
+    
+expert_tropical:
+    d_numerical: 119
+    categories: [2,2,2,2]
+    token_bias: True
+    d_token: 192 
+    # transformer
+    n_layers: 10
+    n_heads: 8 
+    d_ffn_factor: 1.333
+    attention_dropout: 0.2
+    ffn_dropout: 0.1
+    residual_dropout: 0.0
+    prenormalization: False
+    initialization: 'kaiming'
+    activation: 'reglu'
+    # linformer
+    kv_compression: 
+    kv_compression_sharing: 
+    #
+    d_out: 1
+    
+    
+expert_mild_temperate:
+    d_numerical: 119
+    categories: [2,2,2,2]
+    token_bias: True
+    d_token: 192 
+    # transformer
+    n_layers: 24
+    n_heads: 8 
+    d_ffn_factor: 1.333
+    attention_dropout: 0.2
+    ffn_dropout: 0.1
+    residual_dropout: 0.0
+    prenormalization: False
+    initialization: 'kaiming'
+    activation: 'reglu'
+    # linformer
+    kv_compression: 
+    kv_compression_sharing: 
+    #
+    d_out: 1

@@ -1,0 +1,2 @@
+Job <866782> is submitted to queue <VIOLET>.
+python3: can't open file 'for_training/train.py': [Errno 2] No such file or directory

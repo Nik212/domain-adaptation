@@ -17,7 +17,7 @@ class Single_expert(LightningModule):
         model_config = config.model
         self.train_config = config.train
         
-        self.model=FTTransformer(   d_numerical=model_config.d_numerical,
+        self.model = FTTransformer( d_numerical=model_config.d_numerical,
                                     categories=model_config.categories,
                                     token_bias=model_config.token_bias,
                                     d_token=model_config.d_token,

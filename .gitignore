@@ -3,3 +3,4 @@ src/lightning_logs
 src/catboost_info
 src/canonical-paritioned-dataset
 src/trained_experts
+src/*.txt
