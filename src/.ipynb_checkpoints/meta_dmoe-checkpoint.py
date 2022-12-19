@@ -6,10 +6,10 @@ from torch import optim
 from utils import utils
 import pandas as pd
 import numpy as np
-
+from tqdm import tqdm
 
 def train_epoch(selector, source_domains_experts, student, student_name, 
-                train_loader, grouper, epoch, curr, mask_grouper, split_to_cluster,
+                train_loader, epoch, curr, mask_grouper, split_to_cluster,
                 device, acc_best=0, tlr=1e-4, slr=1e-4, ilr=1e-3,
                 batch_size=256, sup_size=24, test_way='id', save=False,
                 root_dir='data'):
@@ -36,7 +36,7 @@ def train_epoch(selector, source_domains_experts, student, student_name,
     
     iter_per_epoch = len(train_loader)
         
-    for x, y_true, metadata in train_loader:
+    for x, y_true, metadata in tqdm(train_loader):
         selector.eval()
         head.eval()
         features.eval()
@@ -133,7 +133,7 @@ def train_kd(selector, train_loader, val_loader, selector_name, models_list, stu
         slr = slr*decayRate
         
         
-def train_model_selector(selector, model_name, models_list, device, train_loader, test_loader, root_dir='data',
+def train_model_selector(selector, models_list, device, train_loader, test_loader, root_dir='data',
                          batch_size=32, lr=1e-6, l2=0,
                          num_epochs=12, decayRate=0.96, save=True, test_way='ood'):
     for model in models_list:
@@ -154,17 +154,20 @@ def train_model_selector(selector, model_name, models_list, device, train_loader
         
         print(f"Epoch:{epoch}|| Total:{tot}")
         
-        for x, y_true, metadata in train_loader:
+        for x, y_true, metadata in tqdm(train_loader):
             selector.train()
-    
-            x = x.to(device)
-            y_true = y_true.to(device)
             
+            x_num, x_cat = x[0], x[1]
+            x_num = x_num.to(device)
+            x_cat = x_cat.to(device)
+            y_true = y_true.to(device)
+    
             with torch.no_grad():
-                features = torch.stack([model(x).detach() for model in models_list], dim=-1)
+                features = torch.stack([model(x_num, x_cat).detach() for model in models_list], dim=-1)
                 features = features.permute((0,2,1))
             out = selector(features)
-
+            out = out.squeeze()
+            
             loss = criterion(out, y_true)
             loss.backward()
             optimizer.step()
@@ -212,7 +215,7 @@ def get_selector_accuracy(selector, models_list, data_loader, device, progress=T
 
 
         
-def train_model(model, model_name, device, train_loader, val_loader, domain=None, batch_size=32, lr=1e-3, l2=1e-2, 
+def train_model(model, device, train_loader, val_loader, domain=None, batch_size=32, lr=1e-3, l2=1e-2, 
                 num_epochs=5, decayRate=1., save=True, test_way='ood', root_dir='data'):
 
     
@@ -230,7 +233,7 @@ def train_model(model, model_name, device, train_loader, val_loader, domain=None
         
         print(f"Epoch:{epoch} || Total:{tot}")
         
-        for x, y_true, metadata in iter(train_loader):
+        for x, y_true, metadata in tqdm(train_loader):
             model.train()
     
             x = x.to(device)

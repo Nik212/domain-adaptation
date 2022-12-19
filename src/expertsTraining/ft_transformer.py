@@ -270,7 +270,7 @@ class FTTransformer(nn.Module):
             x = layer[f'norm{norm_idx}'](x)
         return x
 
-    def forward(self, x_num: Tensor, x_cat: ty.Optional[Tensor]) -> Tensor:
+    def forward(self, x_num: Tensor, x_cat: ty.Optional[Tensor], return_feat=False) -> Tensor:
         x = self.tokenizer(x_num, x_cat)
         
         for layer_idx, layer in enumerate(self.layers):
@@ -301,6 +301,10 @@ class FTTransformer(nn.Module):
         if self.last_normalization is not None:
             x = self.last_normalization(x)
         x = self.last_activation(x)
+        
+        if return_feat:
+            return x
+        
         x = self.head(x)
         x = x.squeeze(-1)
         return x

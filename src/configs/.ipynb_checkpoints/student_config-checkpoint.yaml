@@ -1,11 +1,12 @@
 fa_selector:
-    dim:
-    depth:
-    heads:
-    mlp_dim:
+    dim: 192
+    depth: 5
+    heads: 8
+    mlp_dim: 1024
     dropout: 0.0
     out_dim: 1
     pool: 'mean'
+    model_path: ''
     
 student:
     d_numerical: 119
