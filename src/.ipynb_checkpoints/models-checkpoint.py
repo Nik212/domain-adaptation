@@ -112,7 +112,6 @@ class DivideModel(nn.Module):
         
     def forward(self, x_num, x_cat):
         x = self.features(x_num, x_cat)
-        x = x.view(-1, self.num_ftrs)
         x = self.head(x)
         x = x.squeeze(-1)
         return x
@@ -143,10 +142,9 @@ def StudentModel(config, device):
 
 
 class NetFeature(nn.Module):
-    def __init__(self, original_model, layer=-1):
+    def __init__(self, original_model):
         super(NetFeature, self).__init__()
         self.original_model=FeaturesModel(original_model)
-        # self.features = nn.ModuleList(list(original_model.children())[:layer])
         
     def forward(self, x_num, x_cat):
         x = self.original_model(x_num, x_cat)
@@ -154,7 +152,7 @@ class NetFeature(nn.Module):
         return x
     
 
-def get_feature_list(models_list, device, layer=-1):
+def get_feature_list(models_list, device):
     feature_list = {}
     for climate, model in models_list.items():
         feature_list[climate] = NetFeature(model).to(device)

@@ -74,7 +74,7 @@ def initializeExperts(cfg):
 if __name__ == '__main__':
     
     with hydra.initialize(version_base=None, config_path="../src/configs"):
-        data_cfg = hydra.compose(config_name='data_config')
+        data_cfg = hydra.compose(config_name='data_meta_dmoe_config')
         experts_cfg = hydra.compose(config_name='experts_config')
         student_cfg = hydra.compose(config_name='student_config')
 
@@ -86,7 +86,6 @@ if __name__ == '__main__':
 
     domains_train = df_train.climate.unique()
 
-    batch_size = 256
     train_loader = torch.utils.data.DataLoader(DatasetMetaDMOE(df_train, None), batch_size = data_cfg.batch_size)
     val_loader = torch.utils.data.DataLoader(DatasetMetaDMOE(df_dev, None), batch_size = data_cfg.batch_size)
     
@@ -118,11 +117,11 @@ if __name__ == '__main__':
     else:
         print("Pretraining knowledge aggregator...")
         
-        train_model_selector(selector, models_list, device, train_loader, val_loader, root_dir='src/trained_experts',
-                             save=True, batch_size=data_cfg.batch_size, lr=1e-4, l2=0,
-                             num_epochs=12, decayRate=0.96)
+        train_model_selector(selector, models_list, device, train_loader, val_loader, root_dir=data_cfg.root_dir,
+                             save=True, batch_size=data_cfg.batch_size, lr=data_cfg.selector.lr, l2=data_cfg.selector.l2,
+                             num_epochs=data_cfg.selector.num_epochs, decayRate=data_cfg.selector.decayRate)
 
-    # selector.load_state_dict(torch.load(f"model/{args.dataset}/{name}_pretrained_selector_best.pth"))
+    selector.load_state_dict(torch.load(student_cfg.fa_selector.model_path))
 
     student = StudentModel(student_cfg.student, device=device)
 
@@ -131,14 +130,14 @@ if __name__ == '__main__':
     else:
         print("Pretraining student...")
         train_model(student, device, train_loader, val_loader, 
-                    num_epochs=12, save=True,
-                    root_dir='src/trained_experts')
+                    num_epochs=data_cfg.student.num_epochs, save=True,
+                    root_dir=data_cfg.root_dir, lr = data_cfg.student.lr, l2=data_cfg.student.l2, decayRate=data_cfg.student.decayRate)
 
-    # student.load_state_dict(torch.load(f"model/{args.dataset}/{name}_pretrained_exp_best.pth"))
+    student.load_state_dict(torch.load(student_cfg.student.model_path))
 
     print("Start meta-training...")
-    train_kd(selector, models_list, device, train_loader, val_loader, student, batch_size=32,  
-            tlr=1e-2, slr=1e-4, ilr=1e-3, num_epochs=12, save=True, test_way='ood',
+    train_kd(selector, models_list, device, train_loader, val_loader, student, batch_size=data_cfg.batch_size,  
+            tlr=data_cfg.meta.tlr, slr=data_cfg.meta.slr, ilr=data_cfg.meta.ilr, num_epochs=data_cfg.meta.num_epochs, decayRate=data_cfg.meta.decayRate, save=True, test_way='ood',
             root_dir='src/trained_experts')
 
 

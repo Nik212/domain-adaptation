@@ -59,7 +59,6 @@ def train_epoch(selector, source_domains_experts, student,
         y_que = y_que.to(device)
         
 
-        _squeeze = True
         with torch.no_grad():
             logits = torch.stack(
                 [
@@ -81,20 +80,22 @@ def train_epoch(selector, source_domains_experts, student,
         task_model = features.clone()
         task_model.module.eval()
         feat = task_model(x_que_num, x_que_cat)
-        feat = feat.view(feat.shape[0], -1)
         out = head(feat)
-        
+        with torch.no_grad():
+            loss_pre = loss(out.squeeze(), y_que).item()/x_que.shape[0]
+        ###inner loop
         feat = task_model(x_sup_num, x_sup_cat)
         feat = feat.view_as(t_out)
 
         inner_loss = F.mse_loss(feat, t_out)
         task_model.adapt(inner_loss)
-        
+        ###
+        ###outer loop
         x_que = task_model(x_que_num, x_que_cat)
-        x_que = x_que.view(x_que.shape[0], -1)
         s_que_out = head(x_que)
-        s_que_loss = loss(s_que_out, y_que.unsqueeze(-1).float())
+        s_que_loss = loss(s_que_out.squeeze(), y_que)
         #t_sup_loss = teacher_ce(t_out, y_sup)
+        ###
         
         s_que_loss.backward()
         
@@ -187,7 +188,7 @@ def train_model_selector(selector, models_list, device, train_loader, test_loade
                 
                 if avg_mse < mse_best and save:
                     print("Saving model ...")
-                    torch.save(model.state_dict(), 'selector.pth')
+                    torch.save(model.state_dict(), f'{root_dir}/selector.pth')
                     mse_best = avg_mse
                 
             i += 1
@@ -264,7 +265,7 @@ def train_model(model, device, train_loader, val_loader, domain=None, batch_size
 
                 if avg_loss < mse_best and save:
                     print("Saving model ...")
-                    torch.save(model.state_dict(), 'student.pth')
+                    torch.save(model.state_dict(), f'{root_dir}/student.pth')
                     mse_best = avg_mse
 
 
