@@ -82,7 +82,7 @@ def train_epoch(selector, source_domains_experts, student,
         feat = task_model(x_que_num, x_que_cat)
         out = head(feat)
         with torch.no_grad():
-            loss_pre = loss(out.squeeze(), y_que).item()/x_que.shape[0]
+            loss_pre = loss(out.squeeze(), y_que).item()/x_que_num.shape[0]
         ###inner loop
         feat = task_model(x_sup_num, x_sup_cat)
         feat = feat.view_as(t_out)
