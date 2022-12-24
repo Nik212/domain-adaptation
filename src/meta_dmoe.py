@@ -9,6 +9,8 @@ import numpy as np
 from tqdm import tqdm
 import learn2learn as l2l
 import torch.nn.functional as F
+from utils.uncertainty import ensemble_uncertainties_regression
+from utils.utils import l2_loss
 
 def train_epoch(selector, source_domains_experts, student,
                 train_loader, val_loader, epoch, device, tlr=1e-4, slr=1e-4, ilr=1e-3,
@@ -82,7 +84,7 @@ def train_epoch(selector, source_domains_experts, student,
         feat = task_model(x_que_num, x_que_cat)
         out = head(feat)
         with torch.no_grad():
-            loss_pre = loss(out.squeeze(), y_que).item()/x_que_num.shape[0]
+            loss_pre = loss(out.squeeze(), y_que).item()/x_que.shape[0]
         ###inner loop
         feat = task_model(x_sup_num, x_sup_cat)
         feat = feat.view_as(t_out)
@@ -114,6 +116,59 @@ def train_epoch(selector, source_domains_experts, student,
         i += 1
     return None
 
+def eval(selector, task_model_checkpoint, models_list, student,test_loader, domains_list, batch_size, device, ilr=1e-5,
+         test=False, progress=True, uniform_over_groups=False, root_dir='data'):
+
+
+    features = student.features
+    head = student.classifier
+    head.to(device)
+
+    student_maml = l2l.algorithms.MAML(features, lr=ilr)
+    student_maml.to(device)
+
+    old_domain = {}
+    if progress:
+        loader = tqdm(loader)
+
+    for x_sup, y_sup, metadata in test_loader:
+        student_maml.module.eval()
+        selector.eval()
+        head.eval()
+        #target_domain = np.random.choice(set(domains_list['climate']))
+        #domain_indicies = [i for i in range(len(x_sup)) if metadata['climate'][i] == target_domain]
+
+        #if len(domain_indicies) == 0:
+        x_sup = x_sup.to(device)
+        y_sup = y_sup.to(device)
+        task_model = student_maml.clone()
+        task_model.eval()
+        
+        #if list(z)[0] not in old_domain:
+        #    with torch.no_grad():
+        #        logits = torch.stack([model(x_sup).detach() for model in models_list], dim=-1)
+        #        logits = logits.permute((0,2,1))
+        #        t_out = selector.get_feat(logits)  
+            
+        #    feat = task_model(x_sup)
+        #    feat = feat.view_as(t_out)
+        
+        #    kl_loss = l2_loss(feat, t_out)
+        #    torch.cuda.empty_cache()
+        #    task_model.adapt(kl_loss)
+        #    old_domain[list(z)[0]] = task_model.state_dict()
+        #else:
+        task_model.load_state_dict(torch.load())
+        
+        with torch.no_grad():
+            task_model.module.eval()
+            x_sup = task_model(x_sup)
+            x_sup = x_sup.view(x_sup.shape[0], -1)
+            s_que_out = head(x_sup)
+            pred = s_que_out.max(1, keepdim=True)[1]
+            
+
+    return l2_loss(s_que_out.squeeze(), y_sup)
 
 def train_kd(selector, models_list, device, train_loader, val_loader, student,  batch_size=256, sup_size=24, tlr=1e-4, slr=1e-4, ilr=1e-5, num_epochs=30,
              decayRate=0.96, save=False, test_way='ood', root_dir='data', accu_best=0):
@@ -194,7 +249,62 @@ def train_model_selector(selector, models_list, device, train_loader, test_loade
             i += 1
         scheduler.step()
         
+def eval_model_selector(selector, models_list, device, test_loader, root_dir='data',
+                         batch_size=32, lr=1e-6, l2=0,
+                         num_epochs=12, decayRate=0.96, save=True, test_way='ood'):
+    for model in models_list.values():
+        model.eval()
+    
+    criterion = nn.MSELoss()
+    optimizer = optim.Adam(selector.parameters(), lr=lr, weight_decay=l2)
+    scheduler = optim.lr_scheduler.ExponentialLR(optimizer=optimizer, gamma=decayRate)
+    
+    i = 0
+    
+    losses = []
+    mse_best = 0
+
+    tot = len(test_loader)
+    
+    for epoch in range(num_epochs):
         
+        print(f"Epoch:{epoch}|| Total:{tot}")
+        
+        for x, y_true, metadata in tqdm(test_loader):
+            selector.eval()
+            
+            x_num, x_cat = x[0], x[1]
+            x_num = x_num.to(device)
+            x_cat = x_cat.to(device)
+            y_true = y_true.to(device)
+    
+            with torch.no_grad():
+                features = torch.stack([model(x_num, x_cat).detach() for model in models_list.values()], dim=-1)
+                features = features.permute((0,2,1))
+            out = selector(features)
+            out = out.squeeze()
+
+            loss = criterion(out, y_true)
+            losses.append(loss.item()/batch_size)
+            
+            
+            if i % (tot//2) == 0 and i != 0:
+                losses = np.mean(losses)
+                avg_mse = get_selector_accuracy(selector, models_list, test_loader, 
+                                                device, progress=False)
+                
+                print("Iter: {} || Train loss: {:.4f} || Val loss: {:.4f} ".format(i, losses, avg_mse))
+                losses = []
+                
+                if avg_mse < mse_best and save:
+                    print("Saving model ...")
+                    torch.save(model.state_dict(), f'{root_dir}/selector.pth')
+                    mse_best = avg_mse
+                
+            i += 1
+        scheduler.step()
+        
+
 def get_selector_accuracy(selector, models_list, data_loader, device, progress=True):
     selector.eval()
     loss = 0
