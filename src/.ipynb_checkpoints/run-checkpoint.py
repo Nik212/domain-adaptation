@@ -80,11 +80,12 @@ if __name__ == '__main__':
 
     df_train = pd.read_csv('canonical-paritioned-dataset/shifts_canonical_train.csv') #train
     df_dev_in = pd.read_csv('canonical-paritioned-dataset/shifts_canonical_dev_in.csv')
-    df_dev_out = pd.read_csv('canonical-paritioned-dataset/shifts_canonical_dev_out.csv')
+    # df_dev_out = pd.read_csv('canonical-paritioned-dataset/shifts_canonical_dev_out.csv')
 
-    df_dev = pd.concat([df_dev_in, df_dev_out]) # eval dataset
+    df_dev = df_dev_in # eval dataset
 
     domains_train = df_train.climate.unique()
+
 
     train_loader = torch.utils.data.DataLoader(DatasetMetaDMOE(df_train, None), batch_size = data_cfg.batch_size)
     val_loader = torch.utils.data.DataLoader(DatasetMetaDMOE(df_dev, None), batch_size = data_cfg.batch_size)
@@ -92,18 +93,10 @@ if __name__ == '__main__':
     
     source_domains_experts = initializeExperts(experts_cfg)
 
-    # load experts?
-    #if args.load_trained_experts:
-    #    print("Skip training domain specific experts...")
-    #else:
-    #    print("Training domain specific experts...")
-    #    train_exp(models_list, all_split, device, batch_size=args.expert_batch_size,
-    #            lr=args.expert_lr, l2=args.expert_l2, num_epochs=args.expert_epoch,
-    #            save=True, name=name, root_dir=args.data_dir)
-
     for domain, expert in source_domains_experts.items():
         expert.load_state_dict(torch.load(f"trained_experts/{'_'.join(domain.split(' '))}.pth"))
     models_list = get_feature_list(source_domains_experts, device=device)
+    
 
     selector = fa_selector(dim=student_cfg.fa_selector.dim, 
                            depth=student_cfg.fa_selector.depth, 
@@ -112,33 +105,33 @@ if __name__ == '__main__':
                            dropout=student_cfg.fa_selector.dropout,
                            out_dim=student_cfg.fa_selector.out_dim).to(device)
     
-    if student_cfg.fa_selector.model_path != '':
+    if student_cfg.fa_selector.train == False:
         print("Skip pretraining knowledge aggregator...")
     else:
         print("Pretraining knowledge aggregator...")
         
-        train_model_selector(selector, models_list, device, train_loader, val_loader, root_dir=data_cfg.root_dir,
+        train_model_selector(selector, models_list, device, train_loader, val_loader, root_dir=student_cfg.fa_selector.model_path,
                              save=True, batch_size=data_cfg.batch_size, lr=data_cfg.selector.lr, l2=data_cfg.selector.l2,
                              num_epochs=data_cfg.selector.num_epochs, decayRate=data_cfg.selector.decayRate)
-
-    selector.load_state_dict(torch.load(student_cfg.fa_selector.model_path))
+    selector_ckpt = torch.load(student_cfg.fa_selector.model_path, map_location='cpu')
+    selector.load_state_dict(selector_ckpt)
 
     student = StudentModel(student_cfg.student, device=device)
 
-    if student_cfg.student.model_path != '':
+    if student_cfg.student.pretrain == False:
         print("Skip pretraining student...")
     else:
         print("Pretraining student...")
         train_model(student, device, train_loader, val_loader, 
                     num_epochs=data_cfg.student.num_epochs, save=True,
-                    root_dir=data_cfg.root_dir, lr = data_cfg.student.lr, l2=data_cfg.student.l2, decayRate=data_cfg.student.decayRate)
+                    root_dir=student_cfg.student.model_path, lr = data_cfg.student.lr, l2=data_cfg.student.l2, decayRate=data_cfg.student.decayRate)
 
-    student.load_state_dict(torch.load(student_cfg.student.model_path))
+    student.load_state_dict(torch.load(student_cfg.student.model_path, map_location='cpu'))
 
     print("Start meta-training...")
     train_kd(selector, models_list, device, train_loader, val_loader, student, batch_size=data_cfg.batch_size,  
             tlr=data_cfg.meta.tlr, slr=data_cfg.meta.slr, ilr=data_cfg.meta.ilr, num_epochs=data_cfg.meta.num_epochs, decayRate=data_cfg.meta.decayRate, save=True, test_way='ood',
-            root_dir='src/trained_experts')
+            root_dir='trained_experts')
 
 
 

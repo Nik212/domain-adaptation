@@ -1,12 +1,13 @@
 fa_selector:
     dim: 192
     depth: 5
-    heads: 8
-    mlp_dim: 1024
+    heads: 16
+    mlp_dim: 512
     dropout: 0.0
     out_dim: 1
     pool: 'mean'
-    model_path: ''
+    train: True
+    model_path: 'trained_experts/selector.pth'
     
 student:
     d_numerical: 119
@@ -28,4 +29,5 @@ student:
     kv_compression_sharing: 
     #
     d_out: 1
-    model_path: ''
+    pretrain: True
+    model_path: 'trained_experts/student.pth'

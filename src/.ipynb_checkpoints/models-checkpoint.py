@@ -43,6 +43,7 @@ class fa_selector(nn.Module):
     
 class FeaturesModel(nn.Module):
     def __init__(self, original_model):
+        # self.original_model = original_model
         super(FeaturesModel, self).__init__()
         self.tokenizer = original_model.tokenizer
         self.layers = original_model.layers
@@ -56,7 +57,7 @@ class FeaturesModel(nn.Module):
         self.last_activation = original_model.last_activation
         
         
-    def forward(self, x_num, x_cat):
+    def __call__(self, x_num, x_cat):
         x = self.tokenizer(x_num, x_cat)
         
         for layer_idx, layer in enumerate(self.layers):
@@ -95,7 +96,7 @@ class HeadModel(nn.Module):
         super(HeadModel, self).__init__()
         self.head = original_model.head
         
-    def forward(self, x):
+    def __call__(self, x):
         x = self.head(x)
         x = x.squeeze(-1)
         return x
@@ -104,8 +105,6 @@ class HeadModel(nn.Module):
 class DivideModel(nn.Module):
     def __init__(self, original_model, layer=-1):
         super(DivideModel, self).__init__()
-        self.num_ftrs = original_model.head.in_features
-        self.num_class = original_model.head.out_features
         self.features = FeaturesModel(original_model)
         # self.features.add_module("avg_pool", nn.AdaptiveAvgPool2d((1,1)))
         self.head = HeadModel(original_model)
@@ -136,8 +135,8 @@ def StudentModel(config, device):
                         kv_compression_sharing=config.kv_compression_sharing,
                         d_out=config.d_out
                     )
-    model = DivideModel(model)
-    model = model.to(device)
+    model = DivideModel(model.to(device))
+    model = model
     return model
 
 
@@ -148,14 +147,13 @@ class NetFeature(nn.Module):
         
     def forward(self, x_num, x_cat):
         x = self.original_model(x_num, x_cat)
-        x = x.view(x.shape[0], -1)
         return x
     
 
 def get_feature_list(models_list, device):
     feature_list = {}
     for climate, model in models_list.items():
-        feature_list[climate] = NetFeature(model).to(device)
+        feature_list[climate] = NetFeature(model.to(device))
     return feature_list
 
 
